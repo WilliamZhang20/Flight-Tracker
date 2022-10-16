@@ -1,7 +1,13 @@
 # Flight-Tracker
 
-This project takes ADS-B signals from aircraft collected by an SDR (Software-Defined-Radio) then pushes the information to a database. 
-It will process the aircraft callsign, latitude, longitude, speed, and heading. 
-Then, there will be a web app to allow the user to watch a map showing past recordings from my SDR in Ottawa.
+This project takes ADS-B signals from aircraft collected by an SDR (Software-Defined-Radio) then pushes the information to a database. The data can then be used in countless ways.
+The main parameters that processed in this repository are the aircraft callsign, latitude, longitude, speed, and heading. 
 
-## Work in progress
+## Getting started
+
+
+
+## Future Updates
+
+- A web app to see the flights on a map
+- Front-end and back-end features to open the website from anywhere

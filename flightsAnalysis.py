@@ -60,6 +60,7 @@ monthProcessed = processMonth(monthRaw)
 month_yr = monthProcessed + "_" + dateRequest[:idxMonth]
 
 class aircraft:
+    keyAlt = 5000 # key altitude for determining if passing or local
     def __init__(self, row):
         self.time = row[1] # last time detected
         self.planeid = row[2] # hex serial number
@@ -67,7 +68,7 @@ class aircraft:
         if row[4] != "null":
             self.init_alt = int(row[4])
             self.curr_alt = self.init_alt
-            if self.curr_alt <= 2500:
+            if self.curr_alt <= keyAlt:
                 self.status = "local"
         else:
             self.init_alt = 0
@@ -82,7 +83,7 @@ class aircraft:
             if self.init_alt == 0:
                 self.init_alt = int(row[4])
             self.curr_alt = int(row[4])
-            if self.curr_alt <= 3000:
+            if self.curr_alt <= keyAlt:
                 self.status = "local"
         if row[5] != "null":
             self.curr_spd = row[5]
@@ -117,7 +118,7 @@ num_arriving = 0
 print("The Mode S Codes of the aircraft detected are:")
 
 for row in res:
-    # Method for any analysis: maintain array holding current flights and counters for types of flights. If needed, enter into a stats db.
+    # Method for any analysis: maintaining aircraft objects (def above).
     # every row stores: Date, time, hex, callsign, altitude, speed, track, latitude, longitude
     # every row of currFlights will be the same, but also with initial and final altitude
     currTime = row[1]
@@ -134,7 +135,7 @@ for row in res:
                 num_local += 1
             else:
                 num_passing += 1
-            print("-", set.planeid)
+            print("-", set.planeid, set.status, set.init_alt, set.curr_alt)
             toRemove.append(set) # remove all out of range at the end
     if entered == False:
         # if the planeid was not found in current flights, it is new
@@ -148,7 +149,7 @@ for set in currFlights:
         num_local += 1
     else:
         num_passing += 1
-    print("-", set.planeid)
+    print("-", set.planeid, set.status, set.init_alt, set.curr_alt)
 
 conn.close()
 # print out analysis variables

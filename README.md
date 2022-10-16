@@ -1,8 +1,8 @@
 # Flight-Tracker
 
 This project takes ADS-B signals from aircraft collected by an SDR (Software-Defined-Radio) then pushes the information to a database. The data can then be used in countless ways.
-The main parameters that processed in this repository are the aircraft callsign, latitude, longitude, speed, and heading. 
-Originally inspired by [FlightRadar24](https://www.flightradar24.com/).
+The main parameters that processed in this repository are the aircraft callsign, latitude, longitude, speed, and heading. <br/>
+Originally inspired by [FlightRadar24](https://www.flightradar24.com/).</br>
 Since I am a beginner at this, I used a very simple SDR with many useful features inside. It is identical to the one on **[this](https://store.adsbexchange.com/collections/frontpage/products/adsbexchange-com-r820t2-rtl2832u-0-5-ppm-tcxo-ads-b-sdr-w-amp-and-1090-mhz-filter-software-on-industrial-microsd)** website.
 
 ## How it works
@@ -14,7 +14,7 @@ The bash scripts in this repository were drawn from **[this](https://www.satsign
 
 ## Getting started
 
-As of the latest commit, an SDR is required to run the programs.
+As of the latest commit, an SDR is required to be plugged in to run the programs.
 The steps below are:
 1) First, clone the project:
 
@@ -22,7 +22,7 @@ The steps below are:
     git clone https://github.com/WilliamZhang20/Flight-Tracker.git
     cd Flight-Tracker
 ```
-2) Then, install MariaDB and the python-dotenv package:
+2) Then, install MariaDB  and the python-dotenv package:
 
 ```
     sudo pip3 install python-dotenv
@@ -32,13 +32,21 @@ The steps below are:
     sudo apt install mariadb-server
     sudo python3 -m pip install mysqlclient
     sudo mysql_secure_installation
-```
-3) Next, answer 'no' to all installation prompts, set your password, and then enter the server to create the FlightData database:
-
-```
     sudo mysql -u root -p
     CREATE DATABASE FlightData;
 ```
+3) Next, set up dump1090, netcat, and the bash scripts:
+
+```
+    cd ~
+    git clone https://github.com/MalcolmRobb/dump1090.git
+    make
+    sudo apt-get install netcat
+    cd Flight-Tracker
+    sudo chmod +x dump1090.sh
+    sudo chmod +x ncToFile.sh
+``` 
+
 4) After that, create a file called `.env` to define environment variables `mysql_username`, `mysql_password`, and `data_file`. The python programs will need to know which text file the flight data has been written to. 
     For example:
 ```
@@ -48,8 +56,8 @@ The steps below are:
 ```
 5) Finally schedule the automatic collection of data in the cronjob based on the example below. 
 
-For example, with generic names: (The 'shebang' is the Unix shebang, like /bin/sh for example)
-Furthermore, the process needs to be reloaded to avoid data overflow in file.
+    For example, with generic names: (The 'shebang' is the Unix shebang, like /bin/sh for example) </br>
+    Furthermore, the process needs to be reloaded to avoid data overflow in file.
 ```
     min hr * * * shebang sudo ./directory/Flight-Tracker/dump1090.sh start
     min hr * * * shebang sudo ./directory/Flight-Tracker/ncToFile.sh start

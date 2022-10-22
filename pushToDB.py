@@ -26,8 +26,8 @@ def checkIfHasWords(str): # If at least 1 character is a letter, it is accepted
 
 def processData(line):
     x = line.split(",") # split into list based on commas (see sample line in README)
-    if x[14] == '' and x[11] == '' and x[12] == '':
-        return [' '] # has no usable data, therefore is blank
+    if x[14] == '' and x[10]=='' and x[11] == '' and x[12] == '':
+        return [' '] # has no usable data (no alt, spd, hdg, etc), therefore is blank
     del x[8:10] # delete date duplicate
     del x[0:4] # delete unecessary data in front
     del x[1]

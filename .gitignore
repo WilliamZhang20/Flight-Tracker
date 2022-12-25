@@ -1,3 +1,4 @@
 .env
+recoverPrevious.py
 *.txt
 *.log

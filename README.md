@@ -1,27 +1,38 @@
 # Flight-Tracker
 
-This project takes ADS-B signals from aircraft collected by an SDR (Software-Defined-Radio) then pushes the information to a database. The data is then analyzed by a separate program.
-The main parameters that processed in this repository are the aircraft callsign, altitude, mode S code, latitude, longitude, speed, and heading. <br/>
-I was originally inspired by [FlightRadar24](https://www.flightradar24.com/) and the way it and other websites crowdsource data.</br>
-When I obtained my SDR, I initially used the adsbexchange.com feed client to feed my data to their website just like FlightRadar24 does it for theirs. 
-I then decided to process and analyze the data myself. However, the dump1090 signal decoder which was most flexible, could not operate at the same time as the readsb signal decoder required for the feed client. As a result, I had to uninstall the feed client and the readsb signal decoder.
-Since I am a beginner at working with SDRs, I used a very simple SDR with many useful features inside. It is identical to the one on **[this](https://store.adsbexchange.com/collections/frontpage/products/adsbexchange-com-r820t2-rtl2832u-0-5-ppm-tcxo-ads-b-sdr-w-amp-and-1090-mhz-filter-software-on-industrial-microsd)** website. To run the programs, I plugged the SDR to the USB port on my Raspberry Pi 3 Model B+ on which I wrote and ran this repo's code.
+This project processed ADS-B signals from aircraft collected by an SDR (Software-Defined-Radio) then pushes the information to a database for later analysis.
+
+Here's the [antenna](https://store.adsbexchange.com/collections/frontpage/products/adsbexchange-com-r820t2-rtl2832u-0-5-ppm-tcxo-ads-b-sdr-w-amp-and-1090-mhz-filter-software-on-industrial-microsd) that I used. 
+
+The main parameters that processed are aircraft callsign, altitude, serial number, location coordinates, speed, and heading. 
+
+In the repository, the file pushToDB.py processes that data and stores it in a MariaDB database. It also analyzes the number of local and passing flights around the area of detection, and the busiest hours. Then the analysis results are stored.
 
 ## How it works
 
-Currently, the project analyzes the number of flights that are passing or arre local to the area of detection and the busiest hours of detection. 
-The data collected by the SDR is run through [Malcolm Robb's dump1090](https://github.com/MalcolmRobb/dump1090) decoder, and then sent to a TCP server port. Then, by using netcat, the data sent through the TCP port is written to a text file. 
-The process of running the decoder and writing to a text file was automated with the two bash scripts.
-The bash scripts in this repository were inspired from [this](https://www.satsignal.eu/raspberry-pi/dump1090.html) website. A cronjob can be used to automate the excecution of these scripts.  
-</br>
-Each line sent to the text file is a Mode S message sent by an aircraft. The file pushToDB.py will process the lines, and then push a filtered version of each line into a temporary table of a MySQL database called FlightData. That same program will analyze the data in the lines and break it down into three categories: the overall paramters of each flight that was tracked, the busiest hours tracked, and a basic summary of the status of flights. Each category's information for the day will be pushed into its own database, with 1 table per month. Note that number of flights is not necessarily number of planes, as an arriving and departing aircraft will mean 1 arriving flight and 1 departing flight.</br>
-The database called FlightStats records 1 flight per line, and each line will contain the flight's date, flight parameters, and the range of time that it was detected. The database FlightsPerHour has a list of each hour tracked by the receiver. Every day, a list of hours, ordered from the busiest hours first to the least busiest last, will be added. The database called DataSummary will have 1 line per day, and each line will detail the number of departing, arriving, local, passing, and total flights. </br>
-Hundreds of thousands of messages could be processed over the course of 1 day, so running pushToDB.py can take about 5 minutes. In addition, the temporary data table containing all the lines is dropped after the simplified portions have been pushed to their respective databases.
+After plugging the SDR into my Raspberry Pi, I installed a decoder called [dump1090](https://github.com/MalcolmRobb/dump1090) by MalcolmRobb, which processes signals and turns them into readable data. 
+
+In order to collect this data, I used the networking feature of dump1090, in which I could send data to a TCP port. The data contains timestamped lines, with each line being a decoded message from an aircraft in the vicinity containing location, altitude, heading, speed, etc.
+
+To automate the collection process, I wrote two shell scripts that are scheduled by a crontab to start and stop and certain times every day.
+
+- The first script runs dump1090 and sends data to the port. Its structure was inspired from [this](https://www.satsignal.eu/raspberry-pi/dump1090.html) website.
+- The second script will intially clear all the space in a text file that stores data. Then, it uses the [netcat](https://www.geeksforgeeks.org/introduction-to-netcat/) network utility to read the port and send all its data to a text file. 
+
+As soon as the scripts stop running for the day, the program pushToDB.py is run. It will:
+1. Read the text file, remove unecessary information, and store it in a temporary flight data table in a MariaDB database. 
+2. Scan through the table once to collect the number of flights each hour, the overall information about each flight, and the total number of local adn passing flights that day.
+3. Sorts the array with the number of flights each hour to rank them, and then stores the other analysis results from the sorting and step #2 in separate databases for different types of data.
+4. Deletes the temporary table when step #3 is done.
+
+Hundreds of thousands of messages could be processed over the course of 1 day, so running pushToDB.py can take about 10 minutes.
+
 Next, in the file db_analysis.py, the user can request a valid date range (like 2022/07/07 - 2022/09/09, for example), and the program will output a data summary from those dates. For example, it will output the top 10 busiest days (if possible), the busiest hours of the day on average, and the average number of passing or local flights. Furthermore, a list of the 10 most commonly occuring flight numbers will be outputted. 
 
 ## Getting started
 
 As of the latest commit, an SDR is required to be plugged in to run the programs.
+
 The steps below are:
 1) First, clone the project:
 
@@ -67,6 +78,8 @@ The steps below are:
     mysql_password=your_password
     data_file=directory_from_ncShellFile
 ```
+Note: be sure to also edit "PROG_FILE" in ncToFile.sh to the same file chosen in the data_file from .env
+
 5) Finally schedule the automatic collection of data in the cronjob based on the example below. 
 
     For example, with generic names: (run 'which sh' on your terminal, then paste the resulting otuput into the parts of crontab filled in as 'bash_shebang') </br>
@@ -83,6 +96,6 @@ The steps below are:
 
 ## Future Updates
 
-- A web app to see the past flights on a map
+- A web app to see the past flights on a map or to livestream data.
 - Hosting the web server on my Raspberry Pi to open the website from anywhere
 - A more advanced SDR receiver setup where parts can be manually chosen to be added or not, like the bias tee, amplifier, type of antenna, etc.

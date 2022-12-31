@@ -1,8 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 PROG="nc"
 PROG_ARGS="localhost 30003"
 PROG_FILE="/home/pi/flightData.txt"
+ALT_FILE="/home/pi/flightData_alt.txt" ## When script is reset at midnight to save space (for 24/7 data collection)
+PUSH_DATA = "/home/pi/Flight-Tracker/pushToDB.py"
 PIDFILE="/var/run/netcatTransferData.pid"
 
 start() {
@@ -12,12 +14,10 @@ start() {
           exit 1
       else
           cd ~
-          if [ -e $PROG_FILE ]; then
-              echo "Removing current file to create new one" 1>&2
-              rm -f $PROG_FILE # remove previous file and create new
-          fi
-          touch $PROG_FILE
-          $PROG $PROG_ARGS >> "${PROG_FILE}" &
+          ## At the end of every data collection, $PROG_FILE will be left for scanning. Therefore, ALT_FILE must be created under all circumstances.
+          echo "Creating file" 1>&2
+          touch $ALT_FILE
+          $PROG $PROG_ARGS >> "${ALT_FILE}" &
           echo "$PROG started" 1>&2
           touch $PIDFILE
       fi
@@ -28,6 +28,9 @@ stop() {
          ## Program is running, so stop it
          echo "$PROG is running" 1>&2
          killall $PROG
+         rm -f $PROG_FILE ## file from previous data collection
+         mv $ALT_FILE $PROG_FILE
+
          rm -f $PIDFILE
          echo "$PROG stopped" 1>&2
       else
@@ -54,6 +57,7 @@ case "$1" in
       ;;
       reload|restart|force-reload)
           stop
+          sudo python3 $PUSH_DATA
           start
           exit 0
       ;;

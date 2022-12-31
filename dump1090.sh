@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 PROG="dump1090"
 PROG_PATH="/home/pi/dump1090"
 PROG_ARGS="--interactive --net --net-sbs-port 30003"

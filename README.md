@@ -1,8 +1,8 @@
 # Flight-Tracker
 
-This project processes ADS-B signals from aircraft collected by an SDR (Software-Defined-Radio) and then pushes the information to a database for later analysis.
+This project processes aircraft ADS-B signals collected by an SDR (Software-Defined-Radio), analyzes the data, and stores processed data and analysis results in a database.
 
-Here's the [antenna](https://store.adsbexchange.com/collections/frontpage/products/adsbexchange-com-r820t2-rtl2832u-0-5-ppm-tcxo-ads-b-sdr-w-amp-and-1090-mhz-filter-software-on-industrial-microsd) that I used. 
+Here is the [antenna](https://store.adsbexchange.com/collections/frontpage/products/adsbexchange-com-r820t2-rtl2832u-0-5-ppm-tcxo-ads-b-sdr-w-amp-and-1090-mhz-filter-software-on-industrial-microsd) that I used. 
 
 The main parameters that are processed are aircraft callsign, altitude, serial number, location coordinates, speed, and heading. 
 
@@ -10,24 +10,37 @@ The file `pushToDB.py` processes that data and stores it in a MariaDB database. 
 
 ## How it works
 
+### Reading the data
+
 After plugging the SDR into my Raspberry Pi, I installed a decoder called [dump1090](https://github.com/MalcolmRobb/dump1090) by MalcolmRobb, which processes signals and turns them into readable data. 
 
-In order to collect this data, I used the networking feature of dump1090, in which I could send data to a TCP port. The data contains timestamped lines, with each line being a decoded message from an aircraft in the vicinity containing location, altitude, heading, speed, etc.
+In order to collect this data, I used the networking feature of dump1090, in which I could send data to a TCP port. The data contains timestamped lines, with each line being a decoded message from an aircraft in the vicinity containing location, altitude, heading, speed, etc. Normally one could see live data frames in the terminal by simply calling `dump1090 --interactive`. However, it is impossible to transfer the decoded data frames to a text file directly, so one has to stream it to a TCP port, then read the port and transfer it somewhere. 
 
 To automate the collection process, I wrote two shell scripts that are scheduled by a crontab to start and stop and certain times every day, and will run continuously until stopped.
 
-- The first script, `dump1090.sh`, runs dump1090 and sends data to the port. Its structure was inspired by [this](https://www.satsignal.eu/raspberry-pi/dump1090.html) website.
+- The first script, `dump1090.sh`, runs dump1090 and sends data to the port. Its structure was inspired by [this](https://www.satsignal.eu/raspberry-pi/dump1090.html) website. 
 - The second script, `ncToFile.sh`, will initially clear all the space in a text file that stores data. Then, it uses the [netcat](https://www.geeksforgeeks.org/introduction-to-netcat/) network utility tool to read the port and send all its data to a text file. 
 
+### Storing & Analyzing Data
+
 As soon as the scripts stop running for the day, the program `pushToDB.py` should be run. It will:
-1. Read the text file, remove unnecessary information, and store it in a temporary flight data table in a MariaDB database. 
-2. Scan through the table once to collect the number of flights each hour, the overall information about each flight, and the total number of local and passing flights that day.
-3. Sort the array with the number of flights each hour to rank them, and then store the other analysis results from the sorting and step #2 in separate databases for different types of data.
-4. Delete the temporary table when step #3 is done.
+1. Read the text file, remove unnecessary information, and store frames in a temporary flight data table in a MariaDB database. 
+2. Scan through the table once to collect many data points. This includes the number of flights each hour, the overall information about each flight (flight number, starting/ending altitudes, locations, speeds, etc.), and the total number of local and passing flights that day.
+3. Delete the table storing raw data. This was done to avoid data overflow in the database. 
+4. Sort the array with the number of flights each hour to rank them, and then store the other analysis results from the sorting and step #2 in separate databases for different types of data. Please see below for more information. 
 
-Thousands of flight data points could be processed over the course of 1 day, so running pushToDB.py can take about 10 minutes as it will linearly search the entire database.
+The four **databases being used** are:
 
-Next, by running the file `db_analysis.py`, the user can request a valid date range (like 2022/07/07 - 2022/09/09, for example), and the program will output a data summary from those dates. For example, it will output the top 10 busiest days (if possible), the busiest hours of the day on average, and the average number of passing or local flights. Furthermore, a list of the 10 most commonly occurring flight numbers will be outputted. **Note:** for now, most of the functions in `db_analysis.py` have been migrated to `pushToDB.py`, so `db_analysis.py` has yet to be updated.
+- The `FlightData` database contains a table that stores raw aircraft frames that are the output of the dump1090 decoder. Each data frame is a transmission from a single aircraft at a certain point in time. The file `pushToDB.py` will simply use it for easier traversal of data. This means that there will be two entire traversals of data, which is very inefficient and requires further work.
+- The `FlightStats` database contains information about individual planes. Rather than store all the frames and risk damaging the computer, I decided to simply store each flight's callsign, the start and end detection times, speeds, locations, and altitudes. This would help me determine if this flight was local (i.e. departing or arriving) or simply passing at a high altitude.
+- The `FlightsPerHour` database stores information about each hour tracked. The points for each hour include the date, the hour, the number of flights, and the hour's ranking during the entire day. For example, if the most flights were tracked from 14:00 to 15:00, then it will have a ranking of 1, obtained by a basic bubble sorting algorithm (needs improvement).
+- The `DataSummary` database is like the title implies: a summary of the data collected on a certain date. Each call of the program `pushToDB.py` will only add a single data point to this database table. Each point contains the total number of flights tracked, and the number of passing, departing, and arriving flights.
+
+Thousands of flight data points could be processed over the course of 1 day, so running pushToDB.py can take about 10 minutes as it will linearly search the entire database twice.
+
+Next, by running the file `db_analysis.py`, the user can request a valid date range (like 2022/07/07 - 2022/09/09, for example), and the program will output a data summary from those dates. For example, it will output the top 10 busiest days (if possible), the busiest hours of the day on average, and the average number of passing or local flights. Furthermore, a list of the 10 most commonly occurring callsigns will be outputted. 
+
+**Notes for improvement:** for now, most of the functions in `db_analysis.py` were migrated to `pushToDB.py` after the change from storing all frames to select data points was made, so `db_analysis.py` is now **redundant** and has yet to be updated. In addition, the file `pushToDB.py` is noticeably too long (300+ lines of code) and must be shortened with **modularization**. Further attempts to make the code more concise should also allow the database connections to persist between modules. 
 
 ## Getting started
 
